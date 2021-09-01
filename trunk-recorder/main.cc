@@ -170,10 +170,9 @@ bool load_config(string config_file) {
       BOOST_LOG_TRIVIAL(info) << "The formatting for config files has changed.";
       BOOST_LOG_TRIVIAL(info) << "Modulation type, Squelch and audio levels are now set in each System instead of under a Source.";
       BOOST_LOG_TRIVIAL(info) << "See sample config files in the /example folder and look at readme.md for more details.";
-      BOOST_LOG_TRIVIAL(info) <<  "After you have made these updates, make sure you add \"ver\": 2, to the top.\n\n";
+      BOOST_LOG_TRIVIAL(info) << "After you have made these updates, make sure you add \"ver\": 2, to the top.\n\n";
       return false;
     }
-
 
     BOOST_LOG_TRIVIAL(info) << "\n-------------------------------------\n     Trunk Recorder\n-------------------------------------\n";
     BOOST_LOG_TRIVIAL(info) << "\n-------------------------------------\nSYSTEMS\n-------------------------------------\n";
@@ -270,8 +269,8 @@ bool load_config(string config_file) {
       double digital_levels = node.second.get<double>("digitalLevels", 1.0);
       double analog_levels = node.second.get<double>("analogLevels", 8.0);
       double squelch_db = node.second.get<double>("squelch", -160);
-      int    max_dev        = node.second.get<int>("maxDev", 4000);
-      double filter_width   = node.second.get<double>("filterWidth", 1.0);
+      int max_dev = node.second.get<int>("maxDev", 4000);
+      double filter_width = node.second.get<double>("filterWidth", 1.0);
 
       boost::optional<std::string> mod_exists = node.second.get_optional<std::string>("modulation");
 
@@ -389,6 +388,8 @@ bool load_config(string config_file) {
       double rate = node.second.get<double>("rate", 0);
       double error = node.second.get<double>("error", 0);
       double ppm = node.second.get<double>("ppm", 0);
+      double drift_compensation_max_ppm = node.second.get<double>("driftCompensationMaxPpm", 0);
+      double drift_compensation_interval_ppm = node.second.get<double>("driftCompensationIntervalPpm", 0);
       bool agc = node.second.get<bool>("agc", false);
       int gain = node.second.get<double>("gain", 0);
       int if_gain = node.second.get<double>("ifGain", 0);
@@ -399,7 +400,6 @@ bool load_config(string config_file) {
       int tia_gain = node.second.get<double>("tiaGain", 0);
       int vga1_gain = node.second.get<double>("vga1Gain", 0);
       int vga2_gain = node.second.get<double>("vga2Gain", 0);
-
 
       std::string antenna = node.second.get<string>("antenna", "");
       int digital_recorders = node.second.get<int>("digitalRecorders", 0);
@@ -418,6 +418,8 @@ bool load_config(string config_file) {
       BOOST_LOG_TRIVIAL(info) << "Rate: " << FormatSamplingRate(node.second.get<double>("rate", 0));
       BOOST_LOG_TRIVIAL(info) << "Error: " << node.second.get<double>("error", 0);
       BOOST_LOG_TRIVIAL(info) << "PPM Error: " << node.second.get<double>("ppm", 0);
+      BOOST_LOG_TRIVIAL(info) << "Drift Compensation Max PPM: " << drift_compensation_max_ppm;
+      BOOST_LOG_TRIVIAL(info) << "Drift Compensation Interval PPM: " << drift_compensation_interval_ppm;
       BOOST_LOG_TRIVIAL(info) << "Auto gain control: " << node.second.get<bool>("agc", false);
       BOOST_LOG_TRIVIAL(info) << "Gain: " << node.second.get<double>("gain", 0);
       BOOST_LOG_TRIVIAL(info) << "IF Gain: " << node.second.get<double>("ifGain", 0);
@@ -434,13 +436,12 @@ bool load_config(string config_file) {
       BOOST_LOG_TRIVIAL(info) << "SigMF Recorders: " << node.second.get<int>("sigmfRecorders", 0);
       BOOST_LOG_TRIVIAL(info) << "Analog Recorders: " << node.second.get<int>("analogRecorders", 0);
 
-
       if ((ppm != 0) && (error != 0)) {
         BOOST_LOG_TRIVIAL(info) << "Both PPM and Error should not be set at the same time. Setting Error to 0.";
         error = 0;
       }
 
-      Source *source = new Source(center, rate, error, driver, device, &config);
+      Source *source = new Source(center, rate, error, ppm, drift_compensation_max_ppm, drift_compensation_interval_ppm, driver, device, &config);
       BOOST_LOG_TRIVIAL(info) << "Max Frequency: " << FormatFreq(source->get_max_hz());
       BOOST_LOG_TRIVIAL(info) << "Min Frequency: " << FormatFreq(source->get_min_hz());
 
@@ -496,10 +497,6 @@ bool load_config(string config_file) {
       source->set_gain_mode(agc);
       source->set_antenna(antenna);
       source->set_silence_frames(silence_frames);
-
-      if (ppm != 0) {
-        source->set_freq_corr(ppm);
-      }
       source->create_digital_recorders(tb, digital_recorders);
       source->create_analog_recorders(tb, analog_recorders);
       source->create_sigmf_recorders(tb, sigmf_recorders);
@@ -746,7 +743,7 @@ void stop_inactive_recorders() {
 
         // if no additional recording has happened in the past X periods, or the call has gone on for longer than max_duration, stop and open new file
         if (call->get_idle_count() > 5) {
-          Recorder * recorder = call->get_recorder();
+          Recorder *recorder = call->get_recorder();
           call->end_call();
           stats.send_call_end(call);
           call->restart_call();
@@ -755,7 +752,7 @@ void stop_inactive_recorders() {
           }
         } else if (call->get_current_length() > call->get_system()->get_max_duration() && call->get_system()->get_max_duration() > 0) {
           BOOST_LOG_TRIVIAL(info) << "[" << call->get_short_name() << "]\t Restarting this call as it has a duration more than maximum duration of " << call->get_system()->get_max_duration() << "\tTG: " << call->get_talkgroup_display() << "\tFreq: " << FormatFreq(call->get_freq()) << "\tCall Duration: " << call->get_current_length() << "s";
-          Recorder * recorder = call->get_recorder();
+          Recorder *recorder = call->get_recorder();
           call->end_call();
           stats.send_call_end(call);
           call->restart_call();
@@ -764,11 +761,11 @@ void stop_inactive_recorders() {
           }
         }
       } else if (!call->get_recorder()->is_active()) {
-              // P25 Conventional Recorders need a have the graph unlocked before they can start recording.
-              Recorder *recorder = call->get_recorder();
-              recorder->start(call);
-              call->set_state(recording);
-              //stats.send_recorder((Recorder *)recorder->get());
+        // P25 Conventional Recorders need a have the graph unlocked before they can start recording.
+        Recorder *recorder = call->get_recorder();
+        recorder->start(call);
+        call->set_state(recording);
+        //stats.send_recorder((Recorder *)recorder->get());
       }
       ++it;
     } else {
@@ -885,7 +882,7 @@ void unit_registration(string unit_script, string shortName, long unit) {
   unit_affiliations[unit] = 0;
 
   if ((unit_script.length() != 0) && (unit != 0)) {
-    char   shell_command[200];
+    char shell_command[200];
     sprintf(shell_command, "%s %s %li on &", unit_script.c_str(), shortName.c_str(), unit);
     int rc = system(shell_command);
   }
@@ -901,7 +898,7 @@ void unit_deregistration(string unit_script, string shortName, long unit) {
   unit_affiliations[unit] = -1;
 
   if ((unit_script.length() != 0) && (unit != 0)) {
-    char   shell_command[200];
+    char shell_command[200];
     sprintf(shell_command, "%s %s %li off &", unit_script.c_str(), shortName.c_str(), unit);
     int rc = system(shell_command);
   }
@@ -909,7 +906,7 @@ void unit_deregistration(string unit_script, string shortName, long unit) {
 
 void unit_acknowledge(string unit_script, string shortName, long unit) {
   if ((unit_script.length() != 0) && (unit != 0)) {
-    char   shell_command[200];
+    char shell_command[200];
     sprintf(shell_command, "%s %s %li ackresp &", unit_script.c_str(), shortName.c_str(), unit);
     int rc = system(shell_command);
   }
@@ -917,7 +914,7 @@ void unit_acknowledge(string unit_script, string shortName, long unit) {
 
 void unit_location_registration(string unit_script, string shortName, long unit, long talkgroup) {
   if ((unit_script.length() != 0) && (unit != 0)) {
-    char   shell_command[200];
+    char shell_command[200];
     sprintf(shell_command, "%s %s %li locreg %li &", unit_script.c_str(), shortName.c_str(), unit, talkgroup);
     int rc = system(shell_command);
   }
@@ -927,7 +924,7 @@ void group_affiliation(string unit_script, string shortName, long unit, long tal
   unit_affiliations[unit] = talkgroup;
 
   if ((unit_script.length() != 0) && (unit != 0)) {
-    char   shell_command[200];
+    char shell_command[200];
     sprintf(shell_command, "%s %s %li join %li &", unit_script.c_str(), shortName.c_str(), unit, talkgroup);
     int rc = system(shell_command);
   }
@@ -947,7 +944,7 @@ void handle_call(TrunkMessage message, System *sys) {
   unit_affiliations[message.source] = message.talkgroup;
 
   if ((sys->get_unit_script().length() != 0) && (message.source != 0)) {
-    char   shell_command[200];
+    char shell_command[200];
     sprintf(shell_command, "%s %s %li call %li &", sys->get_unit_script().c_str(), sys->get_short_name().c_str(), message.source, message.talkgroup);
     int rc = system(shell_command);
   }
@@ -1191,15 +1188,59 @@ void check_message_count(float timeDiff) {
     if ((sys->system_type != "conventional") && (sys->system_type != "conventionalP25")) {
       float msgs_decoded_per_second = sys->message_count / timeDiff;
 
-      if (msgs_decoded_per_second < 2) {
+      if (msgs_decoded_per_second < config.control_message_warn_rate || config.control_message_warn_rate == -1) {
+        BOOST_LOG_TRIVIAL(error) << "[" << sys->get_short_name() << "]\t Control Channel Message Decode Rate: " << msgs_decoded_per_second << "/sec, count:  " << sys->message_count;
+      }
+
+      Source *source = sys->get_source();
+
+      if (msgs_decoded_per_second < config.control_message_warn_rate || (config.control_message_warn_rate == -1 && msgs_decoded_per_second < 10)) {
+
         if (sys->system_type == "smartnet") {
           sys->smartnet_trunking->reset();
         }
 
-        if (sys->control_channel_count() > 1) {
-          retune_system(sys);
+        bool change_control = false;
+
+        if (source->get_drift_compensation_max_ppm() != 0 && source->get_drift_compensation_interval_ppm() != 0) {
+          // if the settings allow for ppm adjustments, try adjusting it
+          double current_diff = source->get_freq_corr() - source->get_drift_compensation_last_good_ppm();
+          double new_diff;
+          double new_ppm;
+          if (current_diff == 0) {
+            new_diff = source->get_drift_compensation_interval_ppm();
+          } else if (current_diff < 0) {
+            new_diff = current_diff * -1 + source->get_drift_compensation_interval_ppm();
+          } else {
+            new_diff = current_diff * -1;
+          }
+          if (new_diff > source->get_drift_compensation_max_ppm()) {
+            // if there is a limit on how far we're allowed to adjust the PPM, and we've reached it,
+            // reset the PPM to default and try changing control channels
+            BOOST_LOG_TRIVIAL(error) << "[" << sys->get_short_name() << "] Max PPM adjust reached, resetting to original PPM: " << source->get_initial_freq_corr();
+            // Set the current ppm to the original ppm
+            source->set_freq_corr(source->get_initial_freq_corr());
+            // Reset the "last known good" ppm to the original ppm
+            source->set_drift_compensation_last_good_ppm(source->get_initial_freq_corr());
+            change_control = true;
+          } else {
+            // haven't reached PPM adjustment limit yet, so try adjusting it to the new value
+            new_ppm = source->get_drift_compensation_last_good_ppm() + new_diff;
+            BOOST_LOG_TRIVIAL(error) << "[" << sys->get_short_name() << "] Adjusting ppm to: " << new_ppm;
+            source->set_freq_corr(new_ppm);
+          }
         } else {
-          BOOST_LOG_TRIVIAL(error) << "[" << sys->get_short_name() << "]\tThere is only one control channel defined";
+          // settings don't allow for PPM adjustment, so immediately try a new control channel
+          change_control = true;
+        }
+        if (change_control) {
+          // there is a reason to try changing the control channel
+          if (sys->control_channel_count() > 1) {
+            // if there is actually multiple control channels, try changing
+            retune_system(sys);
+          } else {
+            BOOST_LOG_TRIVIAL(error) << "[" << sys->get_short_name() << "]\tThere is only one control channel defined";
+          }
         }
 
         // if it loses track of the control channel, quit after a while
@@ -1211,6 +1252,8 @@ void check_message_count(float timeDiff) {
         }
       } else {
         sys->retune_attempts = 0;
+        // Set the last good PPM to the current PPM, since we're decoding messages now
+        source->set_drift_compensation_last_good_ppm(source->get_freq_corr());
       }
 
       if (msgs_decoded_per_second < config.control_message_warn_rate || config.control_message_warn_rate == -1) {
@@ -1375,7 +1418,6 @@ bool monitor_system() {
               rec = source->create_digital_conventional_recorder(tb);
               call->set_recorder((Recorder *)rec.get());
               calls.push_back(call);
-
             }
 
             // break out of the for loop
@@ -1467,7 +1509,7 @@ int main(int argc, char **argv) {
 
   );
 
-  boost::log::register_simple_formatter_factory< boost::log::trivial::severity_level, char >("Severity");
+  boost::log::register_simple_formatter_factory<boost::log::trivial::severity_level, char>("Severity");
 
   boost::log::add_common_attributes();
   boost::log::core::get()->add_global_attribute("Scope",

@@ -264,8 +264,8 @@ Recorder *Source::get_analog_recorder(Talkgroup *talkgroup) {
   int num_available_recorders = get_num_available_analog_recorders();
 
   if (talkgroup && talkgroup->get_priority() > num_available_recorders) { // a low priority is bad. You need atleast the number of availalbe recorders to your priority
-    BOOST_LOG_TRIVIAL(info) << "\t\tNot recording talkgroup " << talkgroup->number << " (" << talkgroup->alpha_tag << ")" << ", priority is " <<
-      talkgroup->get_priority() << " but only " << num_available_recorders << " recorders available";
+    BOOST_LOG_TRIVIAL(info) << "\t\tNot recording talkgroup " << talkgroup->number << " (" << talkgroup->alpha_tag << ")"
+                            << ", priority is " << talkgroup->get_priority() << " but only " << num_available_recorders << " recorders available";
     return NULL;
   }
 
@@ -434,8 +434,8 @@ Recorder *Source::get_digital_recorder(Talkgroup *talkgroup) {
   int num_available_recorders = get_num_available_digital_recorders();
 
   if (talkgroup && talkgroup->get_priority() > num_available_recorders) { // a low priority is bad. You need atleast the number of availalbe recorders to your priority
-    BOOST_LOG_TRIVIAL(info) << "\t\tNot recording talkgroup " << talkgroup->number << " (" << talkgroup->alpha_tag << ")" << ", priority is " <<
-      talkgroup->get_priority() << " but only " << num_available_recorders << " recorders available";
+    BOOST_LOG_TRIVIAL(info) << "\t\tNot recording talkgroup " << talkgroup->number << " (" << talkgroup->alpha_tag << ")"
+                            << ", priority is " << talkgroup->get_priority() << " but only " << num_available_recorders << " recorders available";
     return NULL;
   }
 
@@ -496,7 +496,7 @@ void Source::set_min_max() {
   max_hz = center + ((rate / 2) - (if1 / 2));
 }
 
-Source::Source(double c, double r, double e, std::string drv, std::string dev, Config *cfg) {
+Source::Source(double c, double r, double e, double p, double dcmp, double dcip, std::string drv, std::string dev, Config *cfg) {
   rate = r;
   center = c;
   error = e;
@@ -516,6 +516,10 @@ Source::Source(double c, double r, double e, std::string drv, std::string dev, C
   max_sigmf_recorders = 0;
   max_analog_recorders = 0;
   debug_recorder_port = 0;
+  initial_ppm = p;
+  drift_correction_last_good_ppm = p;
+  drift_correction_max_ppm = dcmp;
+  drift_correction_interval_ppm = dcip;
 
   if (driver == "osmosdr") {
     osmosdr::source::sptr osmo_src;
@@ -579,6 +583,10 @@ Source::Source(double c, double r, double e, std::string drv, std::string dev, C
 
     source_block = usrp_src;
   }
+
+  if (p != 0) {
+    set_freq_corr(p);
+  }
 }
 
 std::vector<Recorder *> Source::get_recorders() {
@@ -605,4 +613,28 @@ std::vector<Recorder *> Source::get_recorders() {
     recorders.push_back((Recorder *)rx.get());
   }
   return recorders;
+}
+
+double Source::get_freq_corr() {
+  return ppm;
+}
+
+double Source::get_initial_freq_corr() {
+  return initial_ppm;
+}
+
+double Source::get_drift_compensation_max_ppm() {
+  return drift_correction_max_ppm;
+}
+
+double Source::get_drift_compensation_interval_ppm() {
+  return drift_correction_interval_ppm;
+}
+
+double Source::get_drift_compensation_last_good_ppm() {
+  return drift_correction_last_good_ppm;
+}
+
+void Source::set_drift_compensation_last_good_ppm(double p) {
+  drift_correction_last_good_ppm = p;
 }

@@ -23,6 +23,10 @@ class Source {
   double actual_rate;
   double error;
   double ppm;
+  double drift_correction_max_ppm;
+  double drift_correction_interval_ppm;
+  double initial_ppm;
+  double drift_correction_last_good_ppm;
 
   bool gain_mode;
   int gain;
@@ -56,7 +60,7 @@ public:
   int get_num_available_digital_recorders();
   int get_num_available_analog_recorders();
   int get_num();
-  Source(double c, double r, double e, std::string driver, std::string device, Config *cfg);
+  Source(double c, double r, double e, double p, double dcmp, double dcip, std::string driver, std::string device, Config *cfg);
   gr::basic_block_sptr get_src_block();
   double get_min_hz();
   double get_max_hz();
@@ -124,5 +128,13 @@ public:
   }
 
   std::vector<Recorder *> get_recorders();
+
+  // Drift compensation
+  double get_drift_compensation_max_ppm();
+  double get_drift_compensation_interval_ppm();
+  double get_initial_freq_corr();
+  double get_drift_compensation_last_good_ppm();
+  void set_drift_compensation_last_good_ppm(double p);
+  double get_freq_corr();
 };
 #endif
