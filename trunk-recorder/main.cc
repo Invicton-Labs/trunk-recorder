@@ -541,7 +541,7 @@ bool load_config(string config_file) {
     BOOST_LOG_TRIVIAL(info) << "Control channel decoding warnings (< messages/second): " << config.control_message_warn_rate;
     config.control_message_warn_updates = pt.get<float>("controlWarnUpdate", 3.0);
     BOOST_LOG_TRIVIAL(info) << "Control channel decoding updates (seconds): " << config.control_message_warn_updates;
-    config.control_retune_limit = pt.get<int>("controlRetuneLimit", 0);
+    config.control_retune_limit = pt.get<int>("controlRetuneLimit", -1);
     BOOST_LOG_TRIVIAL(info) << "Control channel retune limit: " << config.control_retune_limit;
 
     BOOST_LOG_TRIVIAL(info) << "Frequency format: " << frequencyFormat;
@@ -1234,20 +1234,19 @@ void check_message_count(float timeDiff) {
           change_control = true;
         }
         if (change_control) {
+          // if it loses track of the control channel, quit after a while
+          if (config.control_retune_limit >= 0) {
+            sys->retune_attempts++;
+            if (sys->retune_attempts > config.control_retune_limit) {
+              exit_flag = 1;
+            }
+          }
           // there is a reason to try changing the control channel
           if (sys->control_channel_count() > 1) {
             // if there is actually multiple control channels, try changing
             retune_system(sys);
           } else {
             BOOST_LOG_TRIVIAL(error) << "[" << sys->get_short_name() << "]\tThere is only one control channel defined";
-          }
-        }
-
-        // if it loses track of the control channel, quit after a while
-        if (config.control_retune_limit > 0) {
-          sys->retune_attempts++;
-          if (sys->retune_attempts > config.control_retune_limit) {
-            exit_flag = 1;
           }
         }
       } else {
