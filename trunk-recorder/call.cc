@@ -181,6 +181,9 @@ void Call::end_call() {
     this->get_recorder()->stop();
     shell_command_string = shell_command.str();
     if (this->get_recorder()->get_current_length() > sys->get_min_duration()) {
+
+      sys->empty_call_count = 0;
+
       if (sys->get_api_key().length() != 0 || sys->get_bcfy_api_key().length() != 0) {
         send_call(this, sys, config);
       }
@@ -204,6 +207,8 @@ void Call::end_call() {
     } else {
       // Call too short, delete it (we are deleting it after since we can't easily prevent the file from saving)
       BOOST_LOG_TRIVIAL(info) << "[" << sys->get_short_name() << "]\tDeleting this call as it has a duration less than minimum duration of " << sys->get_min_duration() << "\tTG: " << this->get_talkgroup_display() << "\tFreq: " << FormatFreq(get_freq()) << "\tCall Duration: " << this->get_recorder()->get_current_length() << "s";
+
+      sys->empty_call_count.fetch_add(1);
 
       if (remove(filename) != 0) {
         BOOST_LOG_TRIVIAL(error) << "Could not delete short file " << filename;

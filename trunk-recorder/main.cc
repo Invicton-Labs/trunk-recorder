@@ -1185,6 +1185,12 @@ void check_message_count(float timeDiff) {
   for (std::vector<System *>::iterator it = systems.begin(); it != systems.end(); ++it) {
     System *sys = (System *)*it;
 
+    if (sys->empty_call_count >= 2) {
+      BOOST_LOG_TRIVIAL(error) << "[" << sys->get_short_name() << "]\tCalls are empty, shutting down...";
+      exit_flag = 1;
+      continue;
+    }
+
     if ((sys->system_type != "conventional") && (sys->system_type != "conventionalP25")) {
       float msgs_decoded_per_second = sys->message_count / timeDiff;
 

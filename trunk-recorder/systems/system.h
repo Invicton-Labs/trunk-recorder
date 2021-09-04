@@ -85,6 +85,8 @@ public:
   bool record_unknown;
   bool call_log;
 
+  std::atomic<int> empty_call_count;
+
   smartnet_trunking_sptr smartnet_trunking;
   p25_trunking_sptr p25_trunking;
 
