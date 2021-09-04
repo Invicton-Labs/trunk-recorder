@@ -1194,7 +1194,13 @@ void check_message_count(float timeDiff) {
 
       Source *source = sys->get_source();
 
-      if (msgs_decoded_per_second < config.control_message_warn_rate || (config.control_message_warn_rate == -1 && msgs_decoded_per_second < 10)) {
+      BOOST_LOG_TRIVIAL(info) << "[" << sys->get_short_name() << "]\t Empty call count: " << sys->empty_call_count;
+
+      bool too_few_decoded_messages = msgs_decoded_per_second < config.control_message_warn_rate || (config.control_message_warn_rate == -1 && msgs_decoded_per_second < 10);
+      bool too_many_empty_calls = sys->empty_call_count >= 3;
+
+      // Check if the message decode rate is unacceptably low
+      if (too_few_decoded_messages || too_many_empty_calls) {
 
         if (sys->system_type == "smartnet") {
           sys->smartnet_trunking->reset();
@@ -1207,10 +1213,14 @@ void check_message_count(float timeDiff) {
           double current_diff = source->get_freq_corr() - source->get_drift_compensation_last_good_ppm();
           double new_diff;
           double new_ppm;
+          double interval = source->get_drift_compensation_interval_ppm();
+          if (!too_few_decoded_messages) {
+            interval /= 2;
+          }
           if (current_diff == 0) {
-            new_diff = source->get_drift_compensation_interval_ppm();
+            new_diff = interval;
           } else if (current_diff < 0) {
-            new_diff = current_diff * -1 + source->get_drift_compensation_interval_ppm();
+            new_diff = current_diff * -1 + interval;
           } else {
             new_diff = current_diff * -1;
           }
@@ -1228,6 +1238,14 @@ void check_message_count(float timeDiff) {
             new_ppm = source->get_drift_compensation_last_good_ppm() + new_diff;
             BOOST_LOG_TRIVIAL(error) << "[" << sys->get_short_name() << "] Adjusting ppm to: " << new_ppm;
             source->set_freq_corr(new_ppm);
+          }
+
+          sys->empty_call_count = 0;
+
+          // Only do this if we're doing drift correction for the control channel
+          if (!too_many_empty_calls) {
+            // Mark that we've modified the drift correction since the last known good one
+            source->drift_correction_modified = true;
           }
         } else {
           // settings don't allow for PPM adjustment, so immediately try a new control channel
@@ -1251,12 +1269,14 @@ void check_message_count(float timeDiff) {
         }
       } else {
         sys->retune_attempts = 0;
-        // Set the last good PPM to the current PPM, since we're decoding messages now
-        source->set_drift_compensation_last_good_ppm(source->get_freq_corr());
-      }
 
-      if (msgs_decoded_per_second < config.control_message_warn_rate || config.control_message_warn_rate == -1) {
-        BOOST_LOG_TRIVIAL(error) << "[" << sys->get_short_name() << "]\t Control Channel Message Decode Rate: " << msgs_decoded_per_second << "/sec, count:  " << sys->message_count;
+        // check if this is the first success after changing the drift correction
+        if (source->drift_correction_modified) {
+          // Set the last good PPM to the current PPM, since we're decoding messages now
+          source->set_drift_compensation_last_good_ppm(source->get_freq_corr());
+        }
+        // Mark that the drift correction was not modified
+        source->drift_correction_modified = false;
       }
     }
     sys->message_count = 0;

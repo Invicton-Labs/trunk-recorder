@@ -77,6 +77,7 @@ System::System(int sys_num) {
   d_tps_enabled = false;
   retune_attempts = 0;
   message_count = 0;
+  empty_call_count = 0;
 }
 
 void System::set_xor_mask(unsigned long sys_id, unsigned long wacn, unsigned long nac) {

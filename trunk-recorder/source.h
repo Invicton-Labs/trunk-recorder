@@ -57,6 +57,8 @@ class Source {
   gr::basic_block_sptr source_block;
 
 public:
+  bool drift_correction_modified = false;
+
   int get_num_available_digital_recorders();
   int get_num_available_analog_recorders();
   int get_num();
