@@ -117,7 +117,6 @@ Call::~Call() {
 void Call::restart_call() {
 }
 
-
 void Call::end_call() {
   std::stringstream shell_command;
   std::string shell_command_string;
@@ -128,11 +127,8 @@ void Call::end_call() {
       BOOST_LOG_TRIVIAL(error) << "Call::end_call() State is recording, but no recorder assigned!";
     }
     BOOST_LOG_TRIVIAL(info) << "[" << sys->get_short_name() << "]\tTG: " << this->get_talkgroup_display() << "\tFreq: " << FormatFreq(get_freq()) << "\tEnding Recorded Call - Last Update: " << this->since_last_update() << "s\tCall Elapsed: " << this->elapsed();
-    
+
     final_length = recorder->get_current_length();
-
-
-    
 
     if (freq_count > 0) {
       Rx_Status rx_status = recorder->get_rx_status();
@@ -197,23 +193,23 @@ void Call::end_call() {
       }
 
       // These files may have already been deleted by upload_call_thread() so only do deletion here if that wasn't called
-      if (this->config.upload_server == "" && this->config.bcfy_calls_server == "") {
+      if (this->config.upload_server == "" && this->config.bcfy_calls_server == "" && sys->get_upload_script().length() == 0) {
         if (!sys->get_audio_archive() && remove(filename) != 0) {
-          BOOST_LOG_TRIVIAL(error) << "Could not delete file " << filename;
+          BOOST_LOG_TRIVIAL(error) << "Could not delete completed file " << filename;
         }
         if (!sys->get_call_log() && remove(status_filename) != 0) {
-          BOOST_LOG_TRIVIAL(error) << "Could not delete file " << status_filename;
+          BOOST_LOG_TRIVIAL(error) << "Could not delete completed file " << status_filename;
         }
       }
     } else {
       // Call too short, delete it (we are deleting it after since we can't easily prevent the file from saving)
-     BOOST_LOG_TRIVIAL(info) << "[" << sys->get_short_name() << "]\tDeleting this call as it has a duration less than minimum duration of " << sys->get_min_duration() << "\tTG: " << this->get_talkgroup_display() << "\tFreq: " << FormatFreq(get_freq()) << "\tCall Duration: " << this->get_recorder()->get_current_length() << "s";
+      BOOST_LOG_TRIVIAL(info) << "[" << sys->get_short_name() << "]\tDeleting this call as it has a duration less than minimum duration of " << sys->get_min_duration() << "\tTG: " << this->get_talkgroup_display() << "\tFreq: " << FormatFreq(get_freq()) << "\tCall Duration: " << this->get_recorder()->get_current_length() << "s";
 
       if (remove(filename) != 0) {
-        BOOST_LOG_TRIVIAL(error) << "Could not delete file " << filename;
+        BOOST_LOG_TRIVIAL(error) << "Could not delete short file " << filename;
       }
       if (!sys->get_call_log() && remove(status_filename) != 0) {
-        BOOST_LOG_TRIVIAL(error) << "Could not delete file " << status_filename;
+        BOOST_LOG_TRIVIAL(error) << "Could not delete short file " << status_filename;
       }
     }
   }
